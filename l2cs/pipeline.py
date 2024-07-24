@@ -11,7 +11,6 @@ from face_detection import RetinaFace
 from .utils import prep_input_numpy, getArch
 from .results import GazeResultContainer
 
-
 class Pipeline:
 
     def __init__(
@@ -54,12 +53,12 @@ class Pipeline:
         bboxes = []
         landmarks = []
         scores = []
-
+        index_to_results_dict = []
         if self.include_detector:
             faces = self.detector(frame)
 
             if faces is not None: 
-                for box, landmark, score in faces:
+                for index, [box, landmark, score] in enumerate(faces):
 
                     # Apply threshold
                     if score < self.confidence_threshold:
@@ -85,9 +84,16 @@ class Pipeline:
                     bboxes.append(box)
                     landmarks.append(landmark)
                     scores.append(score)
+                    # index_to_results_dict.append({i:j for i,j in zip(["bbox", "landmarks", "score"],[box, landmarks, score])})
+
+
 
                 # Predict gaze
-                pitch, yaw = self.predict_gaze(np.stack(face_imgs))
+                if len(face_imgs) > 0:
+                    pitch, yaw = self.predict_gaze(np.stack(face_imgs))
+                else:
+                    pitch = np.empty((0, 1))
+                    yaw = np.empty((0, 1))
 
             else:
 
@@ -98,15 +104,19 @@ class Pipeline:
             pitch, yaw = self.predict_gaze(frame)
 
         # Save data
-        results = GazeResultContainer(
-            pitch=pitch,
-            yaw=yaw,
-            bboxes=np.stack(bboxes),
-            landmarks=np.stack(landmarks),
-            scores=np.stack(scores)
-        )
+        if len(face_imgs) > 0:
+            results = GazeResultContainer(
+                pitch=pitch,
+                yaw=yaw,
+                bboxes=np.stack(bboxes),
+                landmarks=np.stack(landmarks),
+                scores=np.stack(scores)
+                # index_to_results = index_to_results_dict
+            )
 
-        return results
+            return results
+        else:
+            return [] #return empty
 
     def predict_gaze(self, frame: Union[np.ndarray, torch.Tensor]):
         
@@ -119,15 +129,17 @@ class Pipeline:
             raise RuntimeError("Invalid dtype for input")
     
         # Predict 
-        gaze_pitch, gaze_yaw = self.model(img)
-        pitch_predicted = self.softmax(gaze_pitch)
+        # gaze_pitch, gaze_yaw = self.model(img) # pitch and yaw wrong here as per model
+        gaze_yaw, gaze_pitch  = self.model(img)
         yaw_predicted = self.softmax(gaze_yaw)
-        
+        pitch_predicted = self.softmax(gaze_pitch)
+
         # Get continuous predictions in degrees.
         pitch_predicted = torch.sum(pitch_predicted.data * self.idx_tensor, dim=1) * 4 - 180
         yaw_predicted = torch.sum(yaw_predicted.data * self.idx_tensor, dim=1) * 4 - 180
-        
+
+        #convert to radians
         pitch_predicted= pitch_predicted.cpu().detach().numpy()* np.pi/180.0
         yaw_predicted= yaw_predicted.cpu().detach().numpy()* np.pi/180.0
 
-        return pitch_predicted, yaw_predicted
+        return pitch_predicted, -yaw_predicted #made yaw negative to fit convention
