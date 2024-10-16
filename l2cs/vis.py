@@ -70,7 +70,7 @@ def render(frame_count: int, frame: np.ndarray,
             Negative yaw should point leftwards.
             Positive pitch should point upwards.
             Negative pitch should point downwards."""
-            #native yaw seems to be negative for right
+            #native yaw was negative for right
             dx = np.cos(pitch) * np.sin(yaw)
             dy = -np.sin(pitch)
 
@@ -182,3 +182,12 @@ def line_intersection(line1_start, line1_end, line2_start, line2_end):
 
 
     return None
+
+
+"""
+analyze_video looks nice but I have a dataframe called df.
+Each row in df is a frame, with columns of 'path' (for the file path), 'pitches', 'yaws', 'bboxes'
+Pitches and yaws are lists with the first item belonging to the first person seen from left to right from the cameras perspective. 
+
+bboxes is a list of lists, each sublist contains [x1,y1,x2,y2]. 
+"""
